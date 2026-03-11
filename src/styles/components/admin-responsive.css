@@ -1,0 +1,152 @@
+/* Admin Responsive
+   统一收口 Theme Console 移动端覆写，避免规则分散回各职责文件。
+*/
+
+@media (max-width: 900px) {
+  .page-header--admin {
+    flex-direction: column;
+    align-items: flex-start;
+  }
+
+  .admin-status {
+    margin-left: 0;
+    transform: translateY(0);
+  }
+
+  .admin-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .admin-actions {
+    align-items: flex-start;
+  }
+
+  .admin-actions__buttons {
+    width: 100%;
+    margin-left: 0;
+    justify-content: flex-end;
+  }
+
+  .admin-social-panel__head {
+    flex-direction: column;
+    align-items: flex-start;
+  }
+
+  .admin-social-header {
+    display: none;
+  }
+
+  .admin-social-list {
+    gap: 8px;
+    border: 0;
+    border-radius: 0;
+    overflow: visible;
+    background: transparent;
+  }
+
+  .admin-social-row {
+    grid-template-columns: 1fr;
+    align-items: start;
+    border: 1px solid var(--border);
+    border-radius: 14px;
+    gap: 10px;
+    padding: 12px;
+  }
+
+  .admin-social-field--order input {
+    width: 100%;
+    max-width: 3ch;
+  }
+
+  .admin-social-field--platform,
+  .admin-social-field--icon {
+    justify-items: start;
+  }
+
+  .admin-social-field--platform select {
+    margin-inline: 0;
+  }
+
+  .admin-social-field--platform .admin-social-static-input {
+    margin-inline: 0;
+  }
+
+  .admin-social-static-action {
+    min-width: 0;
+  }
+
+  .admin-social-row-actions {
+    justify-content: flex-start;
+  }
+
+  .admin-social-cell-label {
+    display: block;
+  }
+
+  .admin-social-actions {
+    justify-content: flex-start;
+  }
+
+  .admin-nav-grid {
+    gap: 8px;
+    border: 0;
+    border-radius: 0;
+    overflow: visible;
+  }
+
+  .admin-nav-header {
+    display: none;
+  }
+
+  .admin-nav-row {
+    grid-template-columns: 1fr;
+    align-items: start;
+    border: 1px solid var(--border);
+    border-radius: 14px;
+    gap: 10px;
+    padding: 12px;
+  }
+
+  .admin-nav-id {
+    align-items: center;
+    justify-content: space-between;
+    gap: 10px;
+    padding-bottom: 8px;
+    border-bottom: 1px dashed var(--border);
+  }
+
+  .admin-nav-id code {
+    min-width: 0;
+  }
+
+  .admin-nav-field,
+  .admin-toggle {
+    gap: 6px;
+  }
+
+  .admin-nav-field--name {
+    padding-left: 0;
+  }
+
+  .admin-nav-cell-label {
+    display: block;
+  }
+
+  .admin-nav-field--name input,
+  .admin-nav-field--order input {
+    margin-inline: 0;
+  }
+
+  .admin-nav-order-frame {
+    min-width: 0;
+  }
+
+  .admin-toggle {
+    align-items: center;
+    justify-content: space-between;
+  }
+
+  .admin-toggle__control {
+    min-height: 32px;
+  }
+}

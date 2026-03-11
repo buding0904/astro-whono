@@ -1,0 +1,40 @@
+---
+interface Props {
+  homeIntroMaxLength: number;
+}
+
+const { homeIntroMaxLength } = Astro.props;
+---
+
+<fieldset class="admin-group">
+  <legend class="admin-group__legend">
+    <span class="admin-group__legend-zh">首页设置</span>
+    <span class="admin-group__legend-sep" aria-hidden="true">·</span>
+    <span class="admin-group__legend-en">Home</span>
+  </legend>
+  <div class="admin-grid">
+    <label class="admin-field admin-field--full">
+      <span class="admin-label">
+        <span class="admin-label__main">首页导语主文案</span>
+      </span>
+      <textarea id="home-intro-lead" rows="3" maxlength={homeIntroMaxLength}></textarea>
+    </label>
+    <label class="admin-field admin-field--full">
+      <span class="admin-label">
+        <span class="admin-label__main">首页导语补充文案</span>
+        <span class="admin-label__hint">（后方固定附带归档 / 随笔链接）</span>
+      </span>
+      <textarea id="home-intro-more" rows="2" maxlength={homeIntroMaxLength}></textarea>
+    </label>
+    <label class="admin-field">
+      <span class="admin-label">
+        <span class="admin-label__main">Hero 预置</span>
+      </span>
+      <select id="home-hero-preset">
+        <option value="default">default</option>
+        <option value="minimal">minimal</option>
+        <option value="none">none</option>
+      </select>
+    </label>
+  </div>
+</fieldset>

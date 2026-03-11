@@ -16,12 +16,22 @@ The format is based on Keep a Changelog, and this project aims to follow Semanti
 ### Changed
 - 页脚、首页导语、侧栏和关于页社交信息改为读取统一配置，与 `/admin/` 设置保持一致
 - `/admin/` 的社交链接表支持固定平台参与统一排序；GitHub / X / Email 保留预设语义，但可编辑位置排序
+- `/admin/` 客户端控制器从页面内联脚本迁到 `src/scripts/admin-console/index.ts`，并抽出 `src/lib/admin-console/shared.ts` 统一收口共享规则与默认值
+- `/admin/` 表单分组已拆到 `src/components/admin/`，社交链接子树也独立为组件，`src/pages/admin/index.astro` 进一步收敛为页面装配层
+- `/admin/` 样式层已拆为 `admin-form` / `admin-social` / `admin-nav` / `admin-responsive` 四段，`src/styles/components/admin.css` 退化为聚合入口
 - 生产环境中的 `/admin/` 保持只读，并从 sitemap 中排除
+- `GET /api/admin/settings/` 改为开发态返回完整编辑载荷、生产态只返回安全只读响应，不再公开输出完整 Theme Console 配置
+- Theme Console 的读写载荷边界统一为“可直接回写”的编辑模型，移除 `resolvedSocialItems` 等运行时派生字段
+- Theme Console 多文件保存流程升级为 staged temp + commit/rollback，避免跨文件半成功状态
+- 优化 `/admin/` Theme Console 的表单布局、提示文案与排序控件样式，提升本地配置台的一致性
 
 ### Fixed
 - 修复 `/admin/` 首次加载可能提示接口读取失败的问题
 - 修复开发环境下 `/admin/` 偶发无法保存配置的问题
 - 改进保存失败提示，便于区分空请求、JSON 格式错误和字段校验失败
+- 修复开发态 `POST /api/admin/settings/` 缺少请求来源校验的问题；现在仅接受同源 `application/json` 请求
+- 修复 `/admin/` 中将字段改回原值后仍被判定为“未保存更改”的问题
+- 修复部分浏览器下 `/admin/` 离页提醒不触发确认对话框的问题
 
 ## [0.1.1] - 2026-02-07
 ### Added

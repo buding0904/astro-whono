@@ -1,16 +1,34 @@
-import { mkdir, rename, rm, writeFile } from 'node:fs/promises';
+import { access, mkdir, rename, rm, writeFile } from 'node:fs/promises';
 import { join } from 'node:path';
 import type { APIRoute } from 'astro';
 import {
+  getEditableThemeSettingsPayload,
   getThemeSettings,
   resetThemeSettingsCache,
   type HeroPresetId,
-  type PageId,
   type SidebarNavId,
   type SiteSocialCustomItem,
   type SiteSocialIconKey,
   type ThemeSettings
 } from '../../../lib/theme-settings';
+import {
+  ADMIN_EMAIL_RE,
+  ADMIN_FOOTER_COPYRIGHT_MAX_LENGTH,
+  ADMIN_FOOTER_START_YEAR_MIN,
+  ADMIN_GITHUB_HOSTS,
+  ADMIN_HERO_PRESET_SET,
+  ADMIN_HOME_INTRO_MAX_LENGTH,
+  ADMIN_LOCALE_RE,
+  ADMIN_NAV_IDS,
+  ADMIN_PAGE_IDS,
+  ADMIN_PAGE_SUBTITLE_MAX_LENGTH,
+  ADMIN_SOCIAL_CUSTOM_LIMIT,
+  ADMIN_SOCIAL_PRESET_IDS,
+  ADMIN_X_HOSTS,
+  getAdminFooterStartYearMax,
+  isAdminNavId,
+  isAdminSocialIconKey
+} from '../../../lib/admin-console/shared';
 
 type WritableGroup = 'site' | 'shell' | 'home' | 'page' | 'ui';
 
@@ -19,6 +37,25 @@ type NavInputItem = {
   label: string;
   visible: boolean;
   order: number;
+};
+
+type PersistEntry = {
+  group: WritableGroup;
+  filePath: string;
+  data: unknown;
+};
+
+type PersistOperation = PersistEntry & {
+  tempPath: string;
+  backupPath: string;
+  existed: boolean;
+  committed: boolean;
+  backupCreated: boolean;
+};
+
+type WriteRequestValidation = {
+  status: number;
+  error: string;
 };
 
 const SETTINGS_DIR = join(process.cwd(), 'src', 'data', 'settings');
@@ -30,17 +67,7 @@ const SETTINGS_FILES: Record<WritableGroup, string> = {
   ui: join(SETTINGS_DIR, 'ui.json')
 };
 
-const NAV_IDS: ReadonlyArray<SidebarNavId> = ['essay', 'bits', 'memo', 'archive', 'about'];
-const PAGE_IDS: ReadonlyArray<PageId> = ['essay', 'archive', 'bits', 'memo', 'about'];
-const HERO_PRESETS: ReadonlySet<HeroPresetId> = new Set(['default', 'minimal', 'none']);
-const LOCALE_RE = /^[A-Za-z]{2,3}(?:-[A-Za-z0-9]{2,8})*$/;
-const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
-const GITHUB_HOSTS = ['github.com'];
-const X_HOSTS = ['x.com', 'twitter.com'];
-const HOME_INTRO_MAX_LENGTH = 240;
-const PAGE_SUBTITLE_MAX_LENGTH = 120;
-const FOOTER_START_YEAR_MIN = 1900;
-const FOOTER_START_YEAR_MAX = new Date().getFullYear();
+const FOOTER_START_YEAR_MAX = getAdminFooterStartYearMax();
 
 const SITE_KEYS = ['title', 'description', 'defaultLocale', 'footer', 'socialLinks'] as const;
 const SHELL_KEYS = ['brandTitle', 'quote', 'nav'] as const;
@@ -49,7 +76,6 @@ const PAGE_KEYS = ['essay', 'archive', 'bits', 'memo', 'about'] as const;
 const UI_KEYS = ['codeBlock', 'readingMode'] as const;
 const FOOTER_KEYS = ['startYear', 'showCurrentYear', 'copyright'] as const;
 const SOCIAL_LINK_KEYS = ['github', 'x', 'email', 'presetOrder', 'custom'] as const;
-const SOCIAL_PRESET_ORDER_KEYS = ['github', 'x', 'email'] as const;
 const SOCIAL_CUSTOM_ITEM_KEYS = ['id', 'label', 'href', 'iconKey', 'visible', 'order'] as const;
 const CODE_BLOCK_KEYS = ['showLineNumbers'] as const;
 const READING_MODE_KEYS = ['showEntry'] as const;
@@ -57,28 +83,13 @@ const NAV_ITEM_KEYS = ['id', 'label', 'visible', 'order'] as const;
 const PAGE_ITEM_KEYS = ['subtitle'] as const;
 const BITS_PAGE_KEYS = ['subtitle', 'defaultAuthor'] as const;
 const DEFAULT_AUTHOR_KEYS = ['name', 'avatar'] as const;
-const SOCIAL_ICON_KEYS: ReadonlySet<SiteSocialIconKey> = new Set([
-  'github',
-  'x',
-  'email',
-  'weibo',
-  'facebook',
-  'instagram',
-  'telegram',
-  'mastodon',
-  'bilibili',
-  'youtube',
-  'linkedin',
-  'website',
-  'link',
-  'globe'
-]);
-const SOCIAL_CUSTOM_LIMIT = 8;
 
 const JSON_HEADERS = {
   'content-type': 'application/json; charset=utf-8',
   'cache-control': 'no-store'
 };
+
+const ADMIN_READONLY_MESSAGE = 'Theme Console settings API is only available in development.';
 
 const isRecord = (value: unknown): value is Record<string, unknown> =>
   typeof value === 'object' && value !== null && !Array.isArray(value);
@@ -99,6 +110,60 @@ const toBoolean = (value: unknown): boolean | undefined =>
 const toInteger = (value: unknown): number | undefined => {
   if (typeof value !== 'number' || !Number.isFinite(value)) return undefined;
   return Number.isInteger(value) ? value : undefined;
+};
+
+const createJsonBody = (data: unknown): string => `${JSON.stringify(data, null, 2)}\n`;
+
+const createTransientFilePath = (filePath: string, suffix: 'tmp' | 'bak'): string =>
+  `${filePath}.${process.pid}.${Date.now()}.${Math.random().toString(16).slice(2)}.${suffix}`;
+
+const fileExists = async (filePath: string): Promise<boolean> => {
+  try {
+    await access(filePath);
+    return true;
+  } catch {
+    return false;
+  }
+};
+
+const parseHeaderOrigin = (value: string | null): string | null => {
+  if (!value) return null;
+  try {
+    return new URL(value).origin;
+  } catch {
+    return null;
+  }
+};
+
+const validateAdminWriteRequest = (request: Request, currentUrl: URL): WriteRequestValidation | null => {
+  const contentType = request.headers.get('content-type')?.toLowerCase() ?? '';
+  if (!contentType.includes('application/json')) {
+    return {
+      status: 415,
+      error: '仅允许 application/json 请求写入 Theme Console 配置'
+    };
+  }
+
+  const currentOrigin = currentUrl.origin;
+  const origin = parseHeaderOrigin(request.headers.get('origin'));
+  const refererOrigin = parseHeaderOrigin(request.headers.get('referer'));
+  const requestOrigin = origin ?? refererOrigin;
+
+  if (!requestOrigin) {
+    return {
+      status: 403,
+      error: '写入请求缺少来源标识，仅允许从当前开发站点同源提交'
+    };
+  }
+
+  if (requestOrigin !== currentOrigin) {
+    return {
+      status: 403,
+      error: '仅允许从当前开发站点同源写入 Theme Console 配置'
+    };
+  }
+
+  return null;
 };
 
 const collectUnknownKeys = (
@@ -148,7 +213,7 @@ const toEmailAddress = (value: unknown): string | null | undefined => {
   if (!trimmed) return null;
 
   const normalized = trimmed.replace(/^mailto:/i, '').trim();
-  return EMAIL_RE.test(normalized) ? normalized : undefined;
+  return ADMIN_EMAIL_RE.test(normalized) ? normalized : undefined;
 };
 
 const validateRelativeAvatarPath = (scope: string, value: string, errors: string[]): void => {
@@ -188,7 +253,7 @@ const parseSocialCustomItem = (
   if (!href) errors.push(`${scope}.href 必须是合法 https:// 链接`);
 
   const iconKeyRaw = toTrimmedString(value.iconKey);
-  if (!iconKeyRaw || !SOCIAL_ICON_KEYS.has(iconKeyRaw as SiteSocialIconKey)) {
+  if (!iconKeyRaw || !isAdminSocialIconKey(iconKeyRaw)) {
     errors.push(`${scope}.iconKey 必须来自白名单`);
   }
 
@@ -235,7 +300,7 @@ const parseNavItem = (value: unknown, errors: string[], index: number): NavInput
   collectUnknownKeys(`shell.nav[${index}]`, value, NAV_ITEM_KEYS, errors);
 
   const idRaw = toTrimmedString(value.id);
-  if (!idRaw || !NAV_IDS.includes(idRaw as SidebarNavId)) {
+  if (!idRaw || !isAdminNavId(idRaw)) {
     errors.push(`shell.nav[${index}].id 非法`);
     return null;
   }
@@ -279,8 +344,8 @@ const applySubtitle = (
       errors.push(`${scope}.subtitle 只允许单行文本`);
       return;
     }
-    if (subtitle.length > PAGE_SUBTITLE_MAX_LENGTH) {
-      errors.push(`${scope}.subtitle 不能超过 ${PAGE_SUBTITLE_MAX_LENGTH} 个字符`);
+    if (subtitle.length > ADMIN_PAGE_SUBTITLE_MAX_LENGTH) {
+      errors.push(`${scope}.subtitle 不能超过 ${ADMIN_PAGE_SUBTITLE_MAX_LENGTH} 个字符`);
       return;
     }
   }
@@ -336,7 +401,7 @@ const parsePatch = (
         const value = toTrimmedString(rawSite.defaultLocale);
         if (!value) {
           errors.push('site.defaultLocale 不能为空');
-        } else if (!LOCALE_RE.test(value)) {
+        } else if (!ADMIN_LOCALE_RE.test(value)) {
           errors.push('site.defaultLocale 格式非法（示例：zh-CN）');
         } else {
           nextSite.defaultLocale = value;
@@ -352,8 +417,10 @@ const parsePatch = (
             const value = toInteger(rawFooter.startYear);
             if (value === undefined) {
               errors.push('site.footer.startYear 必须是整数');
-            } else if (value < FOOTER_START_YEAR_MIN || value > FOOTER_START_YEAR_MAX) {
-              errors.push(`site.footer.startYear 必须在 ${FOOTER_START_YEAR_MIN}-${FOOTER_START_YEAR_MAX} 之间`);
+            } else if (value < ADMIN_FOOTER_START_YEAR_MIN || value > FOOTER_START_YEAR_MAX) {
+              errors.push(
+                `site.footer.startYear 必须在 ${ADMIN_FOOTER_START_YEAR_MIN}-${FOOTER_START_YEAR_MAX} 之间`
+              );
             } else {
               nextSite.footer.startYear = value;
             }
@@ -372,8 +439,8 @@ const parsePatch = (
               errors.push('site.footer.copyright 不能为空');
             } else if (value.includes('\n') || value.includes('\r')) {
               errors.push('site.footer.copyright 只允许单行文本');
-            } else if (value.length > 120) {
-              errors.push('site.footer.copyright 不能超过 120 个字符');
+            } else if (value.length > ADMIN_FOOTER_COPYRIGHT_MAX_LENGTH) {
+              errors.push(`site.footer.copyright 不能超过 ${ADMIN_FOOTER_COPYRIGHT_MAX_LENGTH} 个字符`);
             } else {
               nextSite.footer.copyright = value;
             }
@@ -387,7 +454,7 @@ const parsePatch = (
         } else {
           collectUnknownKeys('site.socialLinks', rawSocialLinks, SOCIAL_LINK_KEYS, errors);
           if (Object.prototype.hasOwnProperty.call(rawSocialLinks, 'github')) {
-            const value = toHttpsUrl(rawSocialLinks.github, GITHUB_HOSTS);
+            const value = toHttpsUrl(rawSocialLinks.github, ADMIN_GITHUB_HOSTS);
             if (value === undefined) {
               errors.push('site.socialLinks.github 只允许 https://github.com/... 或留空');
             } else {
@@ -395,7 +462,7 @@ const parsePatch = (
             }
           }
           if (Object.prototype.hasOwnProperty.call(rawSocialLinks, 'x')) {
-            const value = toHttpsUrl(rawSocialLinks.x, X_HOSTS);
+            const value = toHttpsUrl(rawSocialLinks.x, ADMIN_X_HOSTS);
             if (value === undefined) {
               errors.push('site.socialLinks.x 只允许 https://x.com/...、https://twitter.com/... 或留空');
             } else {
@@ -416,10 +483,10 @@ const parsePatch = (
               errors.push('site.socialLinks.presetOrder 必须是对象');
             } else {
               const presetErrorsBefore = errors.length;
-              collectUnknownKeys('site.socialLinks.presetOrder', rawPresetOrder, SOCIAL_PRESET_ORDER_KEYS, errors);
+              collectUnknownKeys('site.socialLinks.presetOrder', rawPresetOrder, ADMIN_SOCIAL_PRESET_IDS, errors);
 
               const nextPresetOrder = { ...nextSite.socialLinks.presetOrder };
-              for (const key of SOCIAL_PRESET_ORDER_KEYS) {
+              for (const key of ADMIN_SOCIAL_PRESET_IDS) {
                 if (!Object.prototype.hasOwnProperty.call(rawPresetOrder, key)) continue;
                 const value = toInteger(rawPresetOrder[key]);
                 if (value === undefined || value < 1 || value > 999) {
@@ -430,7 +497,7 @@ const parsePatch = (
               }
 
               const seenPresetOrders = new Set<number>();
-              for (const key of SOCIAL_PRESET_ORDER_KEYS) {
+              for (const key of ADMIN_SOCIAL_PRESET_IDS) {
                 const order = nextPresetOrder[key];
                 if (seenPresetOrders.has(order)) {
                   errors.push(`site.socialLinks.presetOrder 出现重复排序值：${order}`);
@@ -449,8 +516,8 @@ const parsePatch = (
               errors.push('site.socialLinks.custom 必须是数组');
             } else {
               const customErrorsBefore = errors.length;
-              if (rawCustom.length > SOCIAL_CUSTOM_LIMIT) {
-                errors.push(`site.socialLinks.custom 最多允许 ${SOCIAL_CUSTOM_LIMIT} 项`);
+              if (rawCustom.length > ADMIN_SOCIAL_CUSTOM_LIMIT) {
+                errors.push(`site.socialLinks.custom 最多允许 ${ADMIN_SOCIAL_CUSTOM_LIMIT} 项`);
               }
 
               const parsedCustom = rawCustom
@@ -513,7 +580,7 @@ const parsePatch = (
             .map((item, index) => parseNavItem(item, errors, index))
             .filter((item): item is NavInputItem => item !== null);
 
-          if (parsedNav.length === NAV_IDS.length) {
+          if (parsedNav.length === ADMIN_NAV_IDS.length) {
             const seenIds = new Set<SidebarNavId>();
             const seenOrder = new Set<number>();
             for (const row of parsedNav) {
@@ -522,7 +589,7 @@ const parsePatch = (
               seenIds.add(row.id);
               seenOrder.add(row.order);
             }
-            for (const navId of NAV_IDS) {
+            for (const navId of ADMIN_NAV_IDS) {
               if (!seenIds.has(navId)) {
                 errors.push(`shell.nav 缺少导航项：${navId}`);
               }
@@ -530,10 +597,10 @@ const parsePatch = (
 
             nextShell.nav = parsedNav.sort((a, b) => {
               if (a.order !== b.order) return a.order - b.order;
-              return NAV_IDS.indexOf(a.id) - NAV_IDS.indexOf(b.id);
+              return ADMIN_NAV_IDS.indexOf(a.id) - ADMIN_NAV_IDS.indexOf(b.id);
             });
-          } else if (rawNav.length !== NAV_IDS.length) {
-            errors.push(`shell.nav 必须包含 ${NAV_IDS.length} 个既有导航项`);
+          } else if (rawNav.length !== ADMIN_NAV_IDS.length) {
+            errors.push(`shell.nav 必须包含 ${ADMIN_NAV_IDS.length} 个既有导航项`);
           }
         }
       }
@@ -555,8 +622,8 @@ const parsePatch = (
         const value = toTrimmedString(rawHome.introLead);
         if (!value) {
           errors.push('home.introLead 不能为空');
-        } else if (value.length > HOME_INTRO_MAX_LENGTH) {
-          errors.push(`home.introLead 不能超过 ${HOME_INTRO_MAX_LENGTH} 个字符`);
+        } else if (value.length > ADMIN_HOME_INTRO_MAX_LENGTH) {
+          errors.push(`home.introLead 不能超过 ${ADMIN_HOME_INTRO_MAX_LENGTH} 个字符`);
         } else {
           nextHome.introLead = value;
         }
@@ -566,8 +633,8 @@ const parsePatch = (
         const value = toTrimmedString(rawHome.introMore);
         if (!value) {
           errors.push('home.introMore 不能为空');
-        } else if (value.length > HOME_INTRO_MAX_LENGTH) {
-          errors.push(`home.introMore 不能超过 ${HOME_INTRO_MAX_LENGTH} 个字符`);
+        } else if (value.length > ADMIN_HOME_INTRO_MAX_LENGTH) {
+          errors.push(`home.introMore 不能超过 ${ADMIN_HOME_INTRO_MAX_LENGTH} 个字符`);
         } else {
           nextHome.introMore = value;
         }
@@ -575,7 +642,7 @@ const parsePatch = (
 
       if (Object.prototype.hasOwnProperty.call(rawHome, 'heroPresetId')) {
         const value = toTrimmedString(rawHome.heroPresetId);
-        if (!value || !HERO_PRESETS.has(value as HeroPresetId)) {
+        if (!value || !ADMIN_HERO_PRESET_SET.has(value as HeroPresetId)) {
           errors.push('home.heroPresetId 只允许 default/minimal/none');
         } else {
           nextHome.heroPresetId = value as HeroPresetId;
@@ -604,7 +671,7 @@ const parsePatch = (
         about: { ...current.page.about }
       };
 
-      for (const pageId of PAGE_IDS) {
+      for (const pageId of ADMIN_PAGE_IDS) {
         if (!Object.prototype.hasOwnProperty.call(rawPage, pageId)) continue;
         const rawItem = rawPage[pageId];
         if (!isRecord(rawItem)) {
@@ -704,28 +771,138 @@ const parsePatch = (
   return { patch, writtenGroups, errors };
 };
 
-const writeJsonAtomic = async (filePath: string, data: unknown): Promise<void> => {
-  await mkdir(SETTINGS_DIR, { recursive: true });
-  const serialized = `${JSON.stringify(data, null, 2)}\n`;
-  const tempPath = `${filePath}.${process.pid}.${Date.now()}.${Math.random().toString(16).slice(2)}.tmp`;
+const createPersistEntries = (
+  patch: Partial<ThemeSettings>,
+  writtenGroups: readonly WritableGroup[]
+): PersistEntry[] => {
+  const entries: PersistEntry[] = [];
 
-  try {
-    await writeFile(tempPath, serialized, 'utf8');
-    await rename(tempPath, filePath);
-  } catch (error) {
-    await rm(tempPath, { force: true }).catch(() => undefined);
-    throw error;
+  if (patch.site && writtenGroups.includes('site')) {
+    entries.push({
+      group: 'site',
+      filePath: SETTINGS_FILES.site,
+      data: toWritableSiteSettings(patch.site)
+    });
+  }
+  if (patch.shell && writtenGroups.includes('shell')) {
+    entries.push({
+      group: 'shell',
+      filePath: SETTINGS_FILES.shell,
+      data: patch.shell
+    });
+  }
+  if (patch.home && writtenGroups.includes('home')) {
+    entries.push({
+      group: 'home',
+      filePath: SETTINGS_FILES.home,
+      data: patch.home
+    });
+  }
+  if (patch.page && writtenGroups.includes('page')) {
+    entries.push({
+      group: 'page',
+      filePath: SETTINGS_FILES.page,
+      data: patch.page
+    });
+  }
+  if (patch.ui && writtenGroups.includes('ui')) {
+    entries.push({
+      group: 'ui',
+      filePath: SETTINGS_FILES.ui,
+      data: patch.ui
+    });
+  }
+
+  return entries;
+};
+
+const rollbackPersistOperations = async (operations: PersistOperation[]): Promise<void> => {
+  for (const operation of [...operations].reverse()) {
+    if (operation.committed) {
+      await rm(operation.filePath, { force: true }).catch(() => undefined);
+    }
+
+    await rm(operation.tempPath, { force: true }).catch(() => undefined);
+
+    if (operation.backupCreated) {
+      await rename(operation.backupPath, operation.filePath).catch(() => undefined);
+    }
   }
 };
 
+const cleanupPersistOperations = async (operations: PersistOperation[]): Promise<void> => {
+  for (const operation of operations) {
+    await rm(operation.tempPath, { force: true }).catch(() => undefined);
+    if (operation.backupCreated) {
+      await rm(operation.backupPath, { force: true }).catch(() => undefined);
+    }
+  }
+};
+
+const persistSettingsTransaction = async (entries: PersistEntry[]): Promise<WritableGroup[]> => {
+  if (entries.length === 0) return [];
+
+  await mkdir(SETTINGS_DIR, { recursive: true });
+
+  const operations: PersistOperation[] = [];
+  for (const entry of entries) {
+    const tempPath = createTransientFilePath(entry.filePath, 'tmp');
+    await writeFile(tempPath, createJsonBody(entry.data), 'utf8');
+    operations.push({
+      ...entry,
+      tempPath,
+      backupPath: createTransientFilePath(entry.filePath, 'bak'),
+      existed: await fileExists(entry.filePath),
+      committed: false,
+      backupCreated: false
+    });
+  }
+
+  try {
+    for (const operation of operations) {
+      if (operation.existed) {
+        await rename(operation.filePath, operation.backupPath);
+        operation.backupCreated = true;
+      }
+
+      await rename(operation.tempPath, operation.filePath);
+      operation.committed = true;
+    }
+  } catch (error) {
+    await rollbackPersistOperations(operations);
+    throw error;
+  }
+
+  await cleanupPersistOperations(operations);
+  return operations.map((operation) => operation.group);
+};
+
 export const GET: APIRoute = async () => {
-  const payload = getThemeSettings();
+  const payload = import.meta.env.DEV
+    ? { ok: true, payload: getEditableThemeSettingsPayload() }
+    : { ok: false, mode: 'readonly', message: ADMIN_READONLY_MESSAGE };
   return new Response(JSON.stringify(payload, null, 2), { headers: JSON_HEADERS });
 };
 
-export const POST: APIRoute = async ({ request }) => {
+export const POST: APIRoute = async ({ request, url }) => {
   if (!import.meta.env.DEV) {
     return new Response('Not Found', { status: 404 });
+  }
+
+  const requestError = validateAdminWriteRequest(request, url);
+  if (requestError) {
+    return new Response(
+      JSON.stringify(
+        {
+          ok: false,
+          errors: [requestError.error],
+          results: createResults([])
+        },
+        null,
+        2
+      ),
+      { status: requestError.status, headers: JSON_HEADERS }
+    );
   }
 
   let body: unknown;
@@ -773,31 +950,16 @@ export const POST: APIRoute = async ({ request }) => {
   }
 
   const results = createResults(writtenGroups);
+  const entries = createPersistEntries(patch, writtenGroups);
 
   try {
-    if (patch.site && results.site.received) {
-      await writeJsonAtomic(SETTINGS_FILES.site, toWritableSiteSettings(patch.site));
-      results.site.written = true;
-    }
-    if (patch.shell && results.shell.received) {
-      await writeJsonAtomic(SETTINGS_FILES.shell, patch.shell);
-      results.shell.written = true;
-    }
-    if (patch.home && results.home.received) {
-      await writeJsonAtomic(SETTINGS_FILES.home, patch.home);
-      results.home.written = true;
-    }
-    if (patch.page && results.page.received) {
-      await writeJsonAtomic(SETTINGS_FILES.page, patch.page);
-      results.page.written = true;
-    }
-    if (patch.ui && results.ui.received) {
-      await writeJsonAtomic(SETTINGS_FILES.ui, patch.ui);
-      results.ui.written = true;
+    const committedGroups = await persistSettingsTransaction(entries);
+    for (const group of committedGroups) {
+      results[group].written = true;
     }
 
     resetThemeSettingsCache();
-    const payload = getThemeSettings();
+    const payload = getEditableThemeSettingsPayload();
 
     return new Response(
       JSON.stringify(

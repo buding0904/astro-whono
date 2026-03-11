@@ -123,9 +123,11 @@ npm run build && npm run preview
 
 - 开发环境：`/admin/` 可操作，读取/保存 `site/shell/home/page/ui` 五组配置
 - 生产环境：`/admin/` 仅显示只读提示页，不提供可写操作
-- 保存接口：`POST /api/admin/settings/`（仅 `DEV` 可写，`PROD` 固定 `404`）
+- 查询接口：`GET /api/admin/settings/`（仅 `DEV` 返回完整编辑载荷；`PROD` 只返回安全只读响应）
+- 保存接口：`POST /api/admin/settings/`（仅 `DEV` 可写，且仅接受同源 `application/json` 请求）
 - 运行策略：`astro.config.mjs` 在开发态使用 `server` output，让 `/api/admin/settings/` 可以处理 `POST`；构建阶段回到 `static`，继续输出纯静态产物
 - 落盘文件：`src/data/settings/site.json`、`src/data/settings/shell.json`、`src/data/settings/home.json`、`src/data/settings/page.json`、`src/data/settings/ui.json`
+- 写入策略：使用 staged temp + commit/rollback，避免多文件保存出现半成功状态
 - 当前已开放字段：基础站点信息、`site.footer.startYear`、`site.footer.showCurrentYear`、`site.footer.copyright`、`site.socialLinks.github|x|email|presetOrder|custom[]`、`shell.brandTitle`、`shell.quote`、`shell.nav`、`home.introLead`、`home.introMore`、`home.heroPresetId`、`page.*.subtitle`、`page.bits.defaultAuthor`、`ui.codeBlock.showLineNumbers`、`ui.readingMode.showEntry`
 - Phase 1.5：已完成 M1 `site.footer` / `site.socialLinks` 扩展、M2 `home.introLead` / `home.introMore`、M3 `page.*.subtitle` 与 `page.bits.defaultAuthor`、M4 about 页统一社交渲染、M5 `/admin` 自定义社交链接编辑 UI
 - `site.socialLinks` 当前支持固定字段 `github` / `x` / `email`、固定平台排序 `presetOrder.{github|x|email}`，以及 `custom[]`；`custom[]` 每项固定为 `id / label / href / iconKey / visible / order`

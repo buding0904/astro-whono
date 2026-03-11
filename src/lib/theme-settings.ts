@@ -176,6 +176,27 @@ export interface ThemeSettingsResolved {
   sources: ThemeSettingsSources;
 }
 
+export interface EditableSiteSocialLinks {
+  github: string | null;
+  x: string | null;
+  email: string | null;
+  presetOrder: SiteSocialPresetOrder;
+  custom: SiteSocialCustomItem[];
+}
+
+export interface EditableSiteSettings extends Omit<SiteSettings, 'socialLinks'> {
+  socialLinks: EditableSiteSocialLinks;
+}
+
+export interface EditableThemeSettings extends Omit<ThemeSettings, 'site'> {
+  site: EditableSiteSettings;
+}
+
+export interface ThemeSettingsEditablePayload {
+  settings: EditableThemeSettings;
+  sources: ThemeSettingsSources;
+}
+
 const SETTINGS_DIR = join(process.cwd(), 'src', 'data', 'settings');
 
 const LEGACY_INTRO_LEAD =
@@ -220,6 +241,14 @@ const clonePresetSocialOrder = (value: Readonly<SiteSocialPresetOrder>): SiteSoc
 
 const cloneResolvedSocialItems = (items: readonly ResolvedSocialItem[]): ResolvedSocialItem[] =>
   items.map((item) => ({ ...item }));
+
+const cloneThemeSettingsSources = (sources: ThemeSettingsSources): ThemeSettingsSources => ({
+  site: { ...sources.site },
+  shell: { ...sources.shell },
+  home: { ...sources.home },
+  page: { ...sources.page },
+  ui: { ...sources.ui }
+});
 
 const DEFAULT_SITE: SiteSettings = {
   title: 'Whono',
@@ -823,6 +852,56 @@ export const getThemeSettings = (): ThemeSettingsResolved => {
   cachedSettings = resolved;
   return resolved;
 };
+
+export const toEditableThemeSettingsPayload = (
+  resolved: ThemeSettingsResolved
+): ThemeSettingsEditablePayload => ({
+  settings: {
+    site: {
+      title: resolved.settings.site.title,
+      description: resolved.settings.site.description,
+      defaultLocale: resolved.settings.site.defaultLocale,
+      footer: {
+        ...resolved.settings.site.footer
+      },
+      socialLinks: {
+        github: resolved.settings.site.socialLinks.github,
+        x: resolved.settings.site.socialLinks.x,
+        email: resolved.settings.site.socialLinks.email,
+        presetOrder: clonePresetSocialOrder(resolved.settings.site.socialLinks.presetOrder),
+        custom: cloneSocialCustomItems(resolved.settings.site.socialLinks.custom)
+      }
+    },
+    shell: {
+      brandTitle: resolved.settings.shell.brandTitle,
+      quote: resolved.settings.shell.quote,
+      nav: cloneNavItems(resolved.settings.shell.nav)
+    },
+    home: {
+      ...resolved.settings.home
+    },
+    page: {
+      essay: { ...resolved.settings.page.essay },
+      archive: { ...resolved.settings.page.archive },
+      bits: {
+        subtitle: resolved.settings.page.bits.subtitle,
+        defaultAuthor: {
+          ...resolved.settings.page.bits.defaultAuthor
+        }
+      },
+      memo: { ...resolved.settings.page.memo },
+      about: { ...resolved.settings.page.about }
+    },
+    ui: {
+      codeBlock: { ...resolved.settings.ui.codeBlock },
+      readingMode: { ...resolved.settings.ui.readingMode }
+    }
+  },
+  sources: cloneThemeSettingsSources(resolved.sources)
+});
+
+export const getEditableThemeSettingsPayload = (): ThemeSettingsEditablePayload =>
+  toEditableThemeSettingsPayload(getThemeSettings());
 
 export const resetThemeSettingsCache = (): void => {
   cachedSettings = null;

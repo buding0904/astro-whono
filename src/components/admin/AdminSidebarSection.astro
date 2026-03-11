@@ -1,0 +1,82 @@
+---
+import type { SidebarNavId } from '../../lib/theme-settings';
+
+interface Props {
+  navIdOrder: readonly SidebarNavId[];
+}
+
+const { navIdOrder } = Astro.props;
+---
+
+<fieldset class="admin-group">
+  <legend class="admin-group__legend">
+    <span class="admin-group__legend-zh">侧栏设置</span>
+    <span class="admin-group__legend-sep" aria-hidden="true">·</span>
+    <span class="admin-group__legend-en">Sidebar</span>
+  </legend>
+  <div class="admin-grid">
+    <label class="admin-field">
+      <span class="admin-label">
+        <span class="admin-label__main">侧栏站点名</span>
+        <span class="admin-label__hint">（显示在左侧站点标题）</span>
+      </span>
+      <input id="shell-brand-title" type="text" autocomplete="off" />
+    </label>
+    <label class="admin-field admin-field--full">
+      <span class="admin-label">
+        <span class="admin-label__main">侧栏引用文案</span>
+        <span class="admin-label__hint">（支持换行显示）</span>
+      </span>
+      <textarea id="shell-quote" rows="4"></textarea>
+    </label>
+  </div>
+
+  <div class="admin-subgroup">
+    <p class="admin-subtitle">
+      <span class="admin-subtitle__main">侧栏导航</span>
+      <span class="admin-subtitle__hint">（仅既有项）</span>
+    </p>
+    <div class="admin-nav-grid">
+      <div class="admin-nav-header" aria-hidden="true">
+        <span>页面 ID</span>
+        <span>页面名称</span>
+        <span>位置排序</span>
+        <span>是否展示</span>
+      </div>
+      {
+        navIdOrder.map((id, index) => (
+          <div class="admin-nav-row" data-nav-id={id}>
+            <p class="admin-nav-id">
+              <span class="admin-nav-cell-label">页面 ID</span>
+              <code>{id}</code>
+            </p>
+            <label class="admin-field admin-nav-field admin-nav-field--name">
+              <span class="admin-nav-cell-label">页面名称</span>
+              <span class="sr-only">{id} 页面名称</span>
+              <span class="admin-nav-name-frame">
+                <span class="admin-nav-name-frame__mark" aria-hidden="true">&lt;</span>
+                <input data-nav-field="label" type="text" autocomplete="off" />
+                <span class="admin-nav-name-frame__mark" aria-hidden="true">&gt;</span>
+              </span>
+            </label>
+            <label class="admin-field admin-nav-field admin-nav-field--order">
+              <span class="admin-nav-cell-label">位置排序</span>
+              <span class="sr-only">{id} 位置排序</span>
+              <span class="admin-social-order-frame admin-nav-order-frame">
+                <span class="admin-social-order-frame__mark" aria-hidden="true">[</span>
+                <input data-nav-field="order" type="number" min="1" step="1" value={index + 1} />
+                <span class="admin-social-order-frame__mark" aria-hidden="true">]</span>
+              </span>
+            </label>
+            <label class="admin-toggle">
+              <span class="admin-nav-cell-label">是否展示</span>
+              <span class="admin-toggle__control">
+                <input data-nav-field="visible" type="checkbox" aria-label={`${id} 是否显示`} />
+              </span>
+            </label>
+          </div>
+        ))
+      }
+    </div>
+  </div>
+</fieldset>

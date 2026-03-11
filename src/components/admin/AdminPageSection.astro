@@ -1,0 +1,72 @@
+---
+interface Props {
+  pageSubtitleMaxLength: number;
+}
+
+const { pageSubtitleMaxLength } = Astro.props;
+---
+
+<fieldset class="admin-group">
+  <legend class="admin-group__legend">
+    <span class="admin-group__legend-zh">内页设置</span>
+    <span class="admin-group__legend-sep" aria-hidden="true">·</span>
+    <span class="admin-group__legend-en">Inner pages</span>
+  </legend>
+  <div class="admin-grid">
+    <label class="admin-field">
+      <span class="admin-label">
+        <span class="admin-label__main">随笔副标题</span>
+        <span class="admin-label__hint">（动态计数 / RSS 固定输出）</span>
+      </span>
+      <input id="page-essay-subtitle" type="text" maxlength={pageSubtitleMaxLength} autocomplete="off" />
+    </label>
+    <label class="admin-field">
+      <span class="admin-label">
+        <span class="admin-label__main">归档副标题</span>
+        <span class="admin-label__hint">（动态计数 / RSS 固定输出）</span>
+      </span>
+      <input id="page-archive-subtitle" type="text" maxlength={pageSubtitleMaxLength} autocomplete="off" />
+    </label>
+    <label class="admin-field">
+      <span class="admin-label">
+        <span class="admin-label__main">絮语副标题</span>
+      </span>
+      <input id="page-bits-subtitle" type="text" maxlength={pageSubtitleMaxLength} autocomplete="off" />
+    </label>
+    <label class="admin-field">
+      <span class="admin-label">
+        <span class="admin-label__main">小记副标题</span>
+        <span class="admin-label__hint">（留空则回退 memo frontmatter）</span>
+      </span>
+      <input id="page-memo-subtitle" type="text" maxlength={pageSubtitleMaxLength} autocomplete="off" />
+    </label>
+    <label class="admin-field">
+      <span class="admin-label">
+        <span class="admin-label__main">关于页副标题</span>
+        <span class="admin-label__hint">（可留空）</span>
+      </span>
+      <input id="page-about-subtitle" type="text" maxlength={pageSubtitleMaxLength} autocomplete="off" />
+    </label>
+  </div>
+
+  <div class="admin-subgroup">
+    <p class="admin-subtitle">
+      <span class="admin-subtitle__main">Bits 默认作者</span>
+    </p>
+    <div class="admin-grid">
+      <label class="admin-field">
+        <span class="admin-label">
+          <span class="admin-label__main">默认作者名</span>
+        </span>
+        <input id="page-bits-author-name" type="text" autocomplete="off" />
+      </label>
+      <label class="admin-field">
+        <span class="admin-label">
+          <span class="admin-label__main">默认头像</span>
+          <span class="admin-label__hint">（相对路径）</span>
+        </span>
+        <input id="page-bits-author-avatar" type="text" autocomplete="off" />
+      </label>
+    </div>
+  </div>
+</fieldset>

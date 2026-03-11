@@ -17,7 +17,6 @@ type SocialActionItem = {
 type ContactItem = {
   key: string;
   href: string;
-  label: string;
   icon: SiteSocialIconKey;
   text: string;
 };
@@ -46,7 +45,6 @@ const contactItems: ContactItem[] = [
   ...resolvedSocialItems.map((item) => ({
     key: item.id,
     href: item.href,
-    label: item.label,
     icon: item.iconKey,
     text: item.id === 'email' ? item.href.replace(/^mailto:/i, '') : formatExternalLabel(item.href)
   }))
@@ -176,9 +174,8 @@ const contactItems: ContactItem[] = [
           <ul class="contact-list">
             {contactItems.map((item) => (
               <li>
-                <span class="contact-link-head">
+                <span class="contact-link-head" aria-hidden="true">
                   <Icon name={item.icon} class="contact-icon" />
-                  <span>{item.label}：</span>
                 </span>
                 <a href={item.href}>{item.text}</a>
               </li>
