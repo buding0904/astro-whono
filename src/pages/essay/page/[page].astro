@@ -23,6 +23,8 @@ const {
   }
 } = getThemeSettings();
 
+export const prerender = true;
+
 export async function getStaticPaths() {
   const visibleEssays = await getVisibleEssays();
   const totalPages = getTotalPages(visibleEssays.length, PAGE_SIZE_ESSAY);

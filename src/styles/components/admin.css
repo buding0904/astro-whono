@@ -1,6 +1,6 @@
 /* Admin Console aggregator
-   保持单一入口，内部按 form / social / nav / responsive 拆分。
-*/
+   /admin 页面按需引入；内部继续按 form / social / nav / responsive 拆分。
+ */
 
 @import "./admin-form.css";
 @import "./admin-social.css";

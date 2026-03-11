@@ -4,6 +4,8 @@ import { getPublished, isReservedSlug } from '../../lib/content';
 import ArticleLayout from '../../layouts/ArticleLayout.astro';
 import { createWithBase } from '../../utils/format';
 
+export const prerender = true;
+
 export async function getStaticPaths() {
   const base = import.meta.env.BASE_URL ?? '/';
   const withBase = createWithBase(base);

@@ -1,5 +1,6 @@
 ---
 import type { SiteSocialIconKey } from '../../lib/theme-settings';
+import { ADMIN_SOCIAL_ORDER_MAX } from '../../lib/admin-console/shared';
 import Icon from '../Icon.astro';
 
 interface SocialIconOption {
@@ -23,7 +24,14 @@ const { socialIconOptions, customSocialIconOptions, defaultCustomSocialIconKey }
       <span class="admin-social-cell-label">位置</span>
       <span class="admin-social-order-frame">
         <span class="admin-social-order-frame__mark" aria-hidden="true">[</span>
-        <input data-social-custom-field="order" type="number" min="1" step="1" inputmode="numeric" />
+        <input
+          data-social-custom-field="order"
+          type="number"
+          min="1"
+          max={String(ADMIN_SOCIAL_ORDER_MAX)}
+          step="1"
+          inputmode="numeric"
+        />
         <span class="admin-social-order-frame__mark" aria-hidden="true">]</span>
       </span>
     </label>

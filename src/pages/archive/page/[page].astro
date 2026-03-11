@@ -21,6 +21,8 @@ const {
   }
 } = getThemeSettings();
 
+export const prerender = true;
+
 export async function getStaticPaths() {
   const archiveItems = await getArchiveEssays();
   const totalPages = getTotalPages(archiveItems.length, PAGE_SIZE_ARCHIVE);

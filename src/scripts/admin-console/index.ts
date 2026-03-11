@@ -7,6 +7,8 @@ import type {
   ThemeSettingsEditablePayload
 } from '@/lib/theme-settings';
 import {
+  ADMIN_SOCIAL_ORDER_MAX,
+  ADMIN_SOCIAL_ORDER_MIN,
   ADMIN_EMAIL_RE,
   ADMIN_FOOTER_COPYRIGHT_MAX_LENGTH,
   ADMIN_FOOTER_START_YEAR_MIN,
@@ -29,6 +31,7 @@ import {
   ADMIN_SOCIAL_PRESET_IDS,
   ADMIN_SOCIAL_PRESET_ORDER_DEFAULT,
   ADMIN_X_HOSTS,
+  getAdminSocialOrderIssues,
   getAdminFooterStartYearMax,
   isAdminHomeIntroLinkKey,
   isAdminSidebarDividerVariant,
@@ -1065,6 +1068,7 @@ if (!root) {
         syncPresetRow(row);
       });
       replaceCustomRows(settings.site.socialLinks?.custom || []);
+      normalizeSocialOrders();
       inputShellBrandTitle.value = settings.shell.brandTitle || '';
       inputShellQuote.value = settings.shell.quote || '';
       inputHomeShowIntroLead.checked = settings.home.showIntroLead !== false;
@@ -1174,28 +1178,53 @@ if (!root) {
         pushIssue('Email 必须是合法邮箱地址', () => inputSiteSocialEmail);
       }
 
-      const presetOrder = settings.site.socialLinks?.presetOrder;
-      const seenPresetOrders = new Set<number>();
+      const presetOrder = settings.site.socialLinks.presetOrder;
+      const customLinks = Array.isArray(settings.site.socialLinks?.custom) ? settings.site.socialLinks.custom : [];
+      const socialOrderIssues = getAdminSocialOrderIssues(
+        presetOrder,
+        customLinks.map((item, index) => ({
+          key: String(index),
+          order: item.order
+        }))
+      );
+      const presetOrderIssues = new Map<SiteSocialPresetId, 'range' | 'duplicate'>();
+      const customOrderIssues = new Map<number, 'range' | 'duplicate'>();
+
+      socialOrderIssues.forEach((issue) => {
+        if (issue.scope === 'preset') {
+          if (isAdminSocialPresetId(issue.key)) {
+            presetOrderIssues.set(issue.key, issue.type);
+          }
+          return;
+        }
+
+        const index = Number.parseInt(issue.key, 10);
+        if (Number.isInteger(index)) {
+          customOrderIssues.set(index, issue.type);
+        }
+      });
+
       ADMIN_SOCIAL_PRESET_IDS.forEach((id) => {
         const order = presetOrder[id];
         const rowLabel = id === 'github' ? 'GitHub' : id === 'x' ? 'X / Twitter' : 'Email';
-        if (!Number.isInteger(order) || order < 1 || order > 999) {
-          pushIssue(`${rowLabel} 的位置排序必须为 1-999 的整数`, getPresetFieldTarget(id, 'order'));
+        const orderIssue = presetOrderIssues.get(id);
+        if (orderIssue === 'range') {
+          pushIssue(
+            `${rowLabel} 的位置排序必须为 ${ADMIN_SOCIAL_ORDER_MIN}-${ADMIN_SOCIAL_ORDER_MAX} 的整数`,
+            getPresetFieldTarget(id, 'order')
+          );
           return;
         }
-        if (seenPresetOrders.has(order)) {
-          pushIssue(`固定平台位置排序不能重复：${order}`, getPresetFieldTarget(id, 'order'));
+        if (orderIssue === 'duplicate') {
+          pushIssue(`社交链接位置排序不能重复：${order}`, getPresetFieldTarget(id, 'order'));
         }
-        seenPresetOrders.add(order);
       });
 
-      const customLinks = Array.isArray(settings.site.socialLinks?.custom) ? settings.site.socialLinks.custom : [];
       if (customLinks.length > ADMIN_SOCIAL_CUSTOM_LIMIT) {
         pushIssue(`自定义链接最多只能添加 ${ADMIN_SOCIAL_CUSTOM_LIMIT} 条`, () => socialCustomAddBtn);
       }
 
       const seenCustomIds = new Set<string>();
-      const seenCustomOrders = new Set<number>();
       customLinks.forEach((item, index) => {
         const rowLabel = `自定义链接 #${index + 1}`;
         if (!item.id) {
@@ -1222,12 +1251,15 @@ if (!root) {
         if (!isAdminSocialIconKey(item.iconKey)) {
           pushIssue(`${rowLabel} 的图标必须从白名单中选择`, getCustomFieldTarget(index, 'iconKey'));
         }
-        if (!Number.isInteger(item.order) || item.order < 1) {
-          pushIssue(`${rowLabel} 的位置排序必须是正整数`, getCustomFieldTarget(index, 'order'));
-        } else if (seenCustomOrders.has(item.order)) {
-          pushIssue(`自定义链接位置排序不能重复：${item.order}`, getCustomFieldTarget(index, 'order'));
+        const orderIssue = customOrderIssues.get(index);
+        if (orderIssue === 'range') {
+          pushIssue(
+            `${rowLabel} 的位置排序必须为 ${ADMIN_SOCIAL_ORDER_MIN}-${ADMIN_SOCIAL_ORDER_MAX} 的整数`,
+            getCustomFieldTarget(index, 'order')
+          );
+        } else if (orderIssue === 'duplicate') {
+          pushIssue(`社交链接位置排序不能重复：${item.order}`, getCustomFieldTarget(index, 'order'));
         }
-        seenCustomOrders.add(item.order);
         if (typeof item.visible !== 'boolean') {
           pushIssue(`${rowLabel} 的 visible 必须是布尔值`, getCustomVisibilityTarget(index));
         }
@@ -1590,6 +1622,9 @@ if (!root) {
 
       const presetRow = target.closest('[data-social-preset-row]');
       if (presetRow) {
+        if (target.matches('[data-social-preset-field="order"], [data-social-preset-field="href"]')) {
+          normalizeSocialOrders();
+        }
         syncPresetRow(presetRow);
         return;
       }
@@ -1599,6 +1634,11 @@ if (!root) {
 
       if (target.matches('[data-social-custom-field="iconKey"]')) {
         syncCustomRow(row, { syncId: true });
+        return;
+      }
+
+      if (target.matches('[data-social-custom-field="order"]')) {
+        normalizeSocialOrders();
       }
     });
 

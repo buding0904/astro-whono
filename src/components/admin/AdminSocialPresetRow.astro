@@ -1,5 +1,6 @@
 ---
 import Icon from '../Icon.astro';
+import { ADMIN_SOCIAL_ORDER_MAX } from '../../lib/admin-console/shared';
 
 interface Props {
   row: {
@@ -29,7 +30,7 @@ const removeLabel = `${row.label} 为固定项，不可删除`;
         data-social-preset-field="order"
         type="number"
         min="1"
-        max="999"
+        max={String(ADMIN_SOCIAL_ORDER_MAX)}
         step="1"
         inputmode="numeric"
         aria-label={`${row.label} 位置排序`}

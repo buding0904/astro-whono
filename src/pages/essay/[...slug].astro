@@ -1,6 +1,7 @@
 ---
 import { getPublished, isReservedSlug } from '../../lib/content';
 
+export const prerender = true;
 
 export async function getStaticPaths() {
   const essays = await getPublished('essay', {

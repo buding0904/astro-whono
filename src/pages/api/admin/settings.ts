@@ -14,6 +14,8 @@ import {
   type ThemeSettings
 } from '../../../lib/theme-settings';
 import {
+  ADMIN_SOCIAL_ORDER_MAX,
+  ADMIN_SOCIAL_ORDER_MIN,
   ADMIN_EMAIL_RE,
   ADMIN_FOOTER_COPYRIGHT_MAX_LENGTH,
   ADMIN_FOOTER_START_YEAR_MIN,
@@ -35,6 +37,7 @@ import {
   ADMIN_SOCIAL_CUSTOM_LIMIT,
   ADMIN_SOCIAL_PRESET_IDS,
   ADMIN_X_HOSTS,
+  getAdminSocialOrderIssues,
   getAdminHeroImageLocalFilePath,
   getAdminFooterStartYearMax,
   isAdminHomeIntroLinkKey,
@@ -603,20 +606,13 @@ const parsePatch = (
               for (const key of ADMIN_SOCIAL_PRESET_IDS) {
                 if (!Object.prototype.hasOwnProperty.call(rawPresetOrder, key)) continue;
                 const value = toInteger(rawPresetOrder[key]);
-                if (value === undefined || value < 1 || value > 999) {
-                  errors.push(`site.socialLinks.presetOrder.${key} 必须是 1-999 的整数`);
+                if (value === undefined || value < ADMIN_SOCIAL_ORDER_MIN || value > ADMIN_SOCIAL_ORDER_MAX) {
+                  errors.push(
+                    `site.socialLinks.presetOrder.${key} 必须是 ${ADMIN_SOCIAL_ORDER_MIN}-${ADMIN_SOCIAL_ORDER_MAX} 的整数`
+                  );
                 } else {
                   nextPresetOrder[key] = value;
                 }
-              }
-
-              const seenPresetOrders = new Set<number>();
-              for (const key of ADMIN_SOCIAL_PRESET_IDS) {
-                const order = nextPresetOrder[key];
-                if (seenPresetOrders.has(order)) {
-                  errors.push(`site.socialLinks.presetOrder 出现重复排序值：${order}`);
-                }
-                seenPresetOrders.add(order);
               }
 
               if (errors.length === presetErrorsBefore) {
@@ -639,16 +635,11 @@ const parsePatch = (
                 .filter((item): item is SiteSocialCustomItem => item !== null);
 
               const seenIds = new Set<string>();
-              const seenOrders = new Set<number>();
               for (const item of parsedCustom) {
                 if (seenIds.has(item.id)) {
                   errors.push(`site.socialLinks.custom.id 重复：${item.id}`);
                 }
-                if (seenOrders.has(item.order)) {
-                  errors.push(`site.socialLinks.custom.order 重复：${item.order}`);
-                }
                 seenIds.add(item.id);
-                seenOrders.add(item.order);
               }
 
               if (errors.length === customErrorsBefore) {
@@ -656,6 +647,39 @@ const parsePatch = (
               }
             }
           }
+
+          const socialOrderIssues = getAdminSocialOrderIssues(
+            nextSite.socialLinks.presetOrder,
+            nextSite.socialLinks.custom.map((item, index) => ({
+              key: String(index),
+              order: item.order
+            }))
+          );
+
+          socialOrderIssues.forEach((issue) => {
+            if (issue.scope === 'preset') {
+              if (issue.type === 'range') {
+                errors.push(
+                  `site.socialLinks.presetOrder.${issue.key} 必须是 ${ADMIN_SOCIAL_ORDER_MIN}-${ADMIN_SOCIAL_ORDER_MAX} 的整数`
+                );
+              } else {
+                errors.push(`site.socialLinks.presetOrder.${issue.key} 与其他社交链接排序冲突：${issue.order}`);
+              }
+              return;
+            }
+
+            const index = Number.parseInt(issue.key, 10);
+            if (!Number.isInteger(index)) return;
+
+            if (issue.type === 'range') {
+              errors.push(
+                `site.socialLinks.custom[${index}].order 必须是 ${ADMIN_SOCIAL_ORDER_MIN}-${ADMIN_SOCIAL_ORDER_MAX} 的整数`
+              );
+              return;
+            }
+
+            errors.push(`site.socialLinks.custom[${index}].order 与其他社交链接排序冲突：${issue.order}`);
+          });
         }
       }
 

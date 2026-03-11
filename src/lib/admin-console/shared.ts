@@ -5,11 +5,13 @@ import type {
   SidebarDividerVariant,
   SidebarNavId,
   SiteSocialIconKey,
-  SiteSocialPresetId
+  SiteSocialPresetId,
+  SiteSocialPresetOrder
 } from '../theme-settings';
 
 export const ADMIN_NAV_IDS = ['essay', 'bits', 'memo', 'archive', 'about'] as const satisfies readonly SidebarNavId[];
 export const ADMIN_PAGE_IDS = ['essay', 'archive', 'bits', 'memo', 'about'] as const satisfies readonly PageId[];
+export const ADMIN_SOCIAL_CUSTOM_LIMIT = 8;
 
 export const ADMIN_HERO_PRESETS = ['default', 'none'] as const satisfies readonly HeroPresetId[];
 export const ADMIN_HERO_PRESET_SET: ReadonlySet<HeroPresetId> = new Set(ADMIN_HERO_PRESETS);
@@ -60,6 +62,21 @@ export const ADMIN_SOCIAL_PRESET_ORDER_DEFAULT: Record<SiteSocialPresetId, numbe
   x: 2,
   email: 3
 };
+export const ADMIN_SOCIAL_ORDER_MIN = 1;
+export const ADMIN_SOCIAL_ORDER_MAX = ADMIN_SOCIAL_PRESET_IDS.length + ADMIN_SOCIAL_CUSTOM_LIMIT;
+
+type AdminSocialOrderScope = 'preset' | 'custom';
+type AdminSocialOrderInput = {
+  key: string;
+  order: number;
+};
+
+export type AdminSocialOrderIssue = {
+  type: 'range' | 'duplicate';
+  scope: AdminSocialOrderScope;
+  key: string;
+  order: number;
+};
 
 export const ADMIN_SOCIAL_ICON_KEYS = [
   'github',
@@ -89,7 +106,6 @@ export const ADMIN_NAV_ORNAMENT_DEFAULT = '·';
 export const ADMIN_NAV_ORNAMENT_MAX_LENGTH = 4;
 export const ADMIN_FOOTER_START_YEAR_MIN = 1900;
 export const ADMIN_FOOTER_COPYRIGHT_MAX_LENGTH = 120;
-export const ADMIN_SOCIAL_CUSTOM_LIMIT = 8;
 
 export const ADMIN_LOCALE_RE = /^[A-Za-z]{2,3}(?:-[A-Za-z0-9]{2,8})*$/;
 export const ADMIN_EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
@@ -114,6 +130,48 @@ export const isAdminSocialPresetId = (value: string): value is SiteSocialPresetI
 
 export const isAdminSocialIconKey = (value: string): value is SiteSocialIconKey =>
   ADMIN_SOCIAL_ICON_KEY_SET.has(value as SiteSocialIconKey);
+
+export const isAdminSocialOrderValue = (value: number): boolean =>
+  Number.isInteger(value) && value >= ADMIN_SOCIAL_ORDER_MIN && value <= ADMIN_SOCIAL_ORDER_MAX;
+
+export const getAdminSocialOrderIssues = (
+  presetOrder: Readonly<SiteSocialPresetOrder>,
+  customItems: readonly AdminSocialOrderInput[]
+): AdminSocialOrderIssue[] => {
+  const entries = [
+    ...ADMIN_SOCIAL_PRESET_IDS.map((id) => ({
+      scope: 'preset' as const,
+      key: id,
+      order: presetOrder[id]
+    })),
+    ...customItems.map((item) => ({
+      scope: 'custom' as const,
+      key: item.key,
+      order: item.order
+    }))
+  ];
+  const orderCounts = new Map<number, number>();
+
+  entries.forEach((entry) => {
+    if (!isAdminSocialOrderValue(entry.order)) return;
+    orderCounts.set(entry.order, (orderCounts.get(entry.order) ?? 0) + 1);
+  });
+
+  const issues: AdminSocialOrderIssue[] = [];
+
+  entries.forEach((entry) => {
+    if (!isAdminSocialOrderValue(entry.order)) {
+      issues.push({ type: 'range', ...entry });
+      return;
+    }
+
+    if ((orderCounts.get(entry.order) ?? 0) > 1) {
+      issues.push({ type: 'duplicate', ...entry });
+    }
+  });
+
+  return issues;
+};
 
 export const getAdminHomeIntroLinkOption = (
   id: HomeIntroLinkKey

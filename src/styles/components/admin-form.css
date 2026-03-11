@@ -1,6 +1,25 @@
 /* Admin Form
-   负责 Theme Console 通用骨架、状态/提示、表单控件、toggle 与底部操作区。
-*/
+   负责 Theme Console 通用骨架、状态/提示、表单控件、toggle 与底部操作区，
+   并承接后台专属 theme tokens，避免泄漏到公开页。
+ */
+
+:root {
+  --admin-status-loading-bg: #78716c;
+  --admin-status-ready-bg: #2f9f62;
+  --admin-status-ok-bg: #4f7354;
+  --admin-status-warn-bg: #1f1f1f;
+  --admin-status-error-bg: #7f1d1d;
+  --admin-status-icon-fg: #f8f4eb;
+}
+
+:root[data-theme='dark'] {
+  --admin-status-loading-bg: #908a84;
+  --admin-status-ready-bg: #52b77e;
+  --admin-status-ok-bg: #5d7f61;
+  --admin-status-warn-bg: #0f0f10;
+  --admin-status-error-bg: #9f3a3a;
+  --admin-status-icon-fg: #f3eee3;
+}
 
 .admin-console {
   padding: 0;
