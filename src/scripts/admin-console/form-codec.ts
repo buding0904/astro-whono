@@ -8,7 +8,6 @@ import type {
 } from '@/lib/theme-settings';
 import {
   ADMIN_ARTICLE_META_DATE_LABEL_DEFAULT,
-  ADMIN_ARTICLE_META_DATE_LABEL_MAX_LENGTH,
   ADMIN_HERO_IMAGE_ALT_DEFAULT,
   ADMIN_HOME_INTRO_LINK_DEFAULT,
   ADMIN_HOME_INTRO_LINK_LIMIT,
@@ -523,12 +522,7 @@ export const createFormCodec = ({
           showDate: typeof rawUiArticleMeta.showDate === 'boolean'
             ? rawUiArticleMeta.showDate
             : true,
-          dateLabel: (() => {
-            const normalized = normalizeSingleLine(rawUiArticleMeta.dateLabel, ADMIN_ARTICLE_META_DATE_LABEL_DEFAULT);
-            return normalized.length <= ADMIN_ARTICLE_META_DATE_LABEL_MAX_LENGTH
-              ? normalized
-              : ADMIN_ARTICLE_META_DATE_LABEL_DEFAULT;
-          })(),
+          dateLabel: normalizeSingleLine(rawUiArticleMeta.dateLabel, ADMIN_ARTICLE_META_DATE_LABEL_DEFAULT),
           showTags: typeof rawUiArticleMeta.showTags === 'boolean'
             ? rawUiArticleMeta.showTags
             : true,

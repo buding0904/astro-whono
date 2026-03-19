@@ -4,7 +4,7 @@ import Icon from '../components/Icon.astro';
 import globalStylesHref from '../styles/global.css?url';
 import { hasSiteUrl } from '../../site.config.mjs';
 import { createWithBase } from '../utils/format';
-import { getThemeSettings } from '../lib/theme-settings';
+import { getThemeSettings, type SidebarNavId } from '../lib/theme-settings';
 
 const {
   title,
@@ -13,7 +13,16 @@ const {
   ogType = 'website',
   bodyClass,
   deferGlobalStyles = false,
-} = Astro.props;
+  activeNavId
+} = Astro.props as {
+  title?: string;
+  description?: string;
+  image?: string;
+  ogType?: string;
+  bodyClass?: string;
+  deferGlobalStyles?: boolean;
+  activeNavId?: SidebarNavId;
+};
 
 const { settings } = getThemeSettings();
 const siteTitle = settings.site.title;
@@ -92,7 +101,7 @@ const withBase = createWithBase(base);
   <body class={bodyClass}>
     <a class="skip-link" href="#content">跳到内容</a>
     <div class="shell" data-sidebar-divider={sidebarDividerVariant}>
-      <Sidebar siteTitle={brandTitle} />
+      <Sidebar siteTitle={brandTitle} activeNavId={activeNavId} />
       <div class="divider" aria-hidden="true"></div>
       <main id="content" class="content" tabindex="-1">
         <div class="content__inner">

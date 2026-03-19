@@ -4,7 +4,7 @@ import Icon from '../components/Icon.astro';
 import Lightbox from '../components/Lightbox.astro';
 import '../styles/article.css';
 import { getEssayDerivedText } from '../lib/content';
-import type { ArticleMetaSettings } from '../lib/theme-settings';
+import type { ArticleMetaSettings, SidebarNavId } from '../lib/theme-settings';
 import { formatISODate } from '../utils/format';
 import { truncateText } from '../utils/excerpt';
 
@@ -31,6 +31,7 @@ const ogImage = coverImage ?? defaultImage;
 const derivedText = getEssayDerivedText(entry);
 const rawDescription = entry?.data?.description?.trim?.() ?? '';
 const description = rawDescription || truncateText(derivedText.excerpt, 90);
+const activeNavId: SidebarNavId = entry?.data?.archive === false ? 'essay' : 'archive';
 const articleReadingStats = articleMetaSettings.showWordCount || articleMetaSettings.showReadingTime
   ? (() => {
       const wordCount = derivedText.plainText.replace(/\s+/g, '').length;
@@ -54,6 +55,7 @@ const shouldShowMetaLine = articleMetaSettings.showDate
   image={ogImage}
   ogType="article"
   bodyClass="article-page immersive-page"
+  activeNavId={activeNavId}
 >
   <Fragment slot="head">
     <meta property="article:published_time" content={entry.data.date.toISOString()} />

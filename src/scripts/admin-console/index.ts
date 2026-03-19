@@ -563,6 +563,13 @@ if (!root) {
       setDirty(JSON.stringify(current) !== JSON.stringify(baseline));
     };
 
+    const validateCurrentSettings = (): { draft: EditableSettings; issues: ValidationIssue[] } => {
+      const draft = collectSettings();
+      const issues = validateSettings(draft);
+      setValidationIssues(issues);
+      return { draft, issues };
+    };
+
     const extractSettingsPayload = (payload: unknown): ThemeSettingsEditablePayload | null => {
       if (!isRecord(payload)) return null;
       if (typeof payload.revision === 'string' && isRecord(payload.settings)) {
@@ -975,9 +982,7 @@ if (!root) {
     });
 
     validateBtn.addEventListener('click', () => {
-      const current = canonicalize(collectSettings());
-      const issues = validateSettings(current);
-      setValidationIssues(issues);
+      const { issues } = validateCurrentSettings();
       if (issues.length) {
         setStatus('error', '校验未通过', { announce: false });
         revealErrorState(issues);
@@ -998,14 +1003,14 @@ if (!root) {
 
     saveBtn.addEventListener('click', async () => {
       if (isSaving) return;
-      const current = canonicalize(collectSettings());
-      const issues = validateSettings(current);
-      setValidationIssues(issues);
+      const { draft, issues } = validateCurrentSettings();
       if (issues.length) {
         setStatus('error', '保存前校验失败', { announce: false });
         revealErrorState(issues);
         return;
       }
+
+      const current = canonicalize(draft);
 
       setSaving(true);
       setStatus('loading', '正在保存到 src/data/settings/*.json');
