@@ -3,6 +3,11 @@ import {
   type CollectionEntry,
   type CollectionKey
 } from 'astro:content';
+import {
+  ESSAY_PUBLIC_SLUG_RE,
+  RESERVED_ESSAY_SLUGS,
+  flattenEntryIdToSlug
+} from '../utils/slug-rules';
 export { createWithBase } from '../utils/format';
 
 type OrderBy<K extends CollectionKey> = (a: CollectionEntry<K>, b: CollectionEntry<K>) => number;
@@ -12,7 +17,16 @@ export type GetPublishedOptions<K extends CollectionKey> = {
   includeDraft?: boolean;
 };
 
-export const isReservedSlug = (slug: string) => slug.startsWith('page/');
+/**
+ * Check whether a slug collides with sibling static routes under /archive/
+ * or /essay/.  After the route narrowing (catch-all → single-segment), only
+ * exact matches need to be checked.
+ *
+ * NOTE: The primary defence is `assertUniqueEssaySlugs` which throws at build
+ * time.  This predicate is kept in `getVisibleEssays` / `getArchiveEssays` as
+ * defense-in-depth — it is NOT the main enforcement point.
+ */
+export const isReservedSlug = (slug: string) => RESERVED_ESSAY_SLUGS.has(slug);
 
 export const getTotalPages = (itemCount: number, pageSize: number) =>
   Math.ceil(itemCount / pageSize);
@@ -51,7 +65,8 @@ export type EssayRouteEntry = {
   next: EssayEntry | null;
 };
 
-export const getEssaySlug = (entry: EssayEntry) => entry.data.slug ?? entry.id;
+export const getEssaySlug = (entry: EssayEntry) =>
+  entry.data.slug ?? flattenEntryIdToSlug(entry.id);
 
 const assertUniqueEssaySlugs = (entries: readonly EssayEntry[]) => {
   const seen = new Map<string, string>();
@@ -59,8 +74,37 @@ const assertUniqueEssaySlugs = (entries: readonly EssayEntry[]) => {
 
   for (const entry of entries) {
     const slug = getEssaySlug(entry);
-    if (isReservedSlug(slug)) continue;
+    const slugSource = entry.data.slug ? 'frontmatter.slug' : `entry.id (flattened from "${entry.id}")`;
 
+    // --- reserved-word check (primary defence) ---
+    if (isReservedSlug(slug)) {
+      throw new Error(
+        [
+          'Essay route slug conflict detected.',
+          `  Entry:       ${entry.id}`,
+          `  Public slug: ${slug}`,
+          `  Source:      ${slugSource}`,
+          `  Reason:      "${slug}" is reserved for sibling static routes under /archive/ and /essay/.`,
+          '  How to fix:  change frontmatter.slug, or rename the file/path so the final public slug is no longer reserved.'
+        ].join('\n')
+      );
+    }
+
+    // --- format validity check (catches bad flattened results) ---
+    if (!ESSAY_PUBLIC_SLUG_RE.test(slug)) {
+      throw new Error(
+        [
+          'Invalid public essay slug detected.',
+          `  Entry:       ${entry.id}`,
+          `  Public slug: ${slug}`,
+          `  Source:      ${slugSource}`,
+          '  Reason:      final public slug must be lowercase kebab-case.',
+          '  How to fix:  provide a valid frontmatter.slug, or rename files/folders to kebab-case.'
+        ].join('\n')
+      );
+    }
+
+    // --- uniqueness check ---
     const firstEntryId = seen.get(slug);
     if (!firstEntryId) {
       seen.set(slug, entry.id);
@@ -78,7 +122,9 @@ const assertUniqueEssaySlugs = (entries: readonly EssayEntry[]) => {
     .map(([slug, entryIds]) => `"${slug}" <- ${entryIds.join(', ')}`)
     .join('; ');
 
-  throw new Error(`Duplicate essay slug detected. Public essay slugs must be unique. ${detail}`);
+  throw new Error(
+    `Duplicate essay slug detected. Public essay slugs must be unique after path flattening. ${detail}`
+  );
 };
 
 const orderByEssayDate = (a: EssayEntry, b: EssayEntry) => b.data.date.valueOf() - a.data.date.valueOf();

@@ -4,10 +4,11 @@ import { defineCollection } from 'astro:content';
 import { glob } from 'astro/loaders';
 import { z } from 'astro/zod';
 import { getAdminBitsAvatarLocalFilePath, normalizeAdminBitsAvatarPath } from './lib/admin-console/shared';
+import { ESSAY_PUBLIC_SLUG_RE } from './utils/slug-rules';
 
 const slugRule = z
   .string()
-  .regex(/^[a-z0-9]+(?:-[a-z0-9]+)*$/, 'slug must be lowercase kebab-case');
+  .regex(ESSAY_PUBLIC_SLUG_RE, 'slug must be lowercase kebab-case');
 
 const baseFields = {
   title: z.string(),
@@ -16,7 +17,8 @@ const baseFields = {
   tags: z.array(z.string()).default([]),
   draft: z.boolean().default(false),
   archive: z.boolean().default(true),
-  // Optional custom permalink. If present, it overrides the auto-generated id.
+  // Optional custom permalink. If present, it overrides the default public slug
+  // derived from the entry id / path.
   slug: slugRule.optional()
 };
 

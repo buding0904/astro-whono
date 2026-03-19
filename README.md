@@ -188,7 +188,7 @@ npm run dev
 
 主要路由：
 - 列表页：`/archive/`、`/essay/`、`/bits/`、`/memo/`、`/about/`
-- 详情页：`/archive/[...slug]`（唯一入口）
+- 详情页：`/archive/[slug]`（唯一入口）
 
 ### 图片资源
 
@@ -206,7 +206,7 @@ title: My Post
 date: 2026-01-01
 draft: false        # 草稿：上线后不会出现在列表/RSS（本地预览可见，默认是 false，可省略）
 archive: true       # 归档开关：false 不进 /archive 与 /archive/rss.xml（默认 true，详情与 /essay 仍可见，可省略）
-slug: optional      # 自定义 URL slug（默认用文件名）
+slug: optional      # 自定义 URL slug（默认使用拍平后的内容路径，例如 2024/my-post → 2024-my-post）
 badge: optional     # 列表徽标；未填时列表显示“随笔”
 ```
 

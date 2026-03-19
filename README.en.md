@@ -187,7 +187,7 @@ Content Collections:
 
 Main routes:
 - List pages: `/archive/`, `/essay/`, `/bits/`, `/memo/`, `/about/`
-- Detail page: `/archive/[...slug]` (single canonical entry point)
+- Detail page: `/archive/[slug]` (single canonical entry point)
 
 ### Image Assets
 
@@ -206,7 +206,7 @@ title: My Post
 date: 2026-01-01
 draft: false        # Draft: hidden from list/RSS in production (visible in local preview; default false, optional)
 archive: true       # Archive switch: false excludes it from /archive and /archive/rss.xml (default true; detail page and /essay remain available)
-slug: optional      # Custom URL slug (filename is used by default)
+slug: optional      # Custom URL slug (defaults to the flattened content path, e.g. 2024/my-post -> 2024-my-post)
 badge: optional     # List badge; if omitted, list shows "Essay"
 ```
 

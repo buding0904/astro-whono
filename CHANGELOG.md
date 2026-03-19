@@ -18,6 +18,7 @@ The format is based on Keep a Changelog, and this project aims to follow Semanti
 - 列表搜索现可与归档标签页联动，归档页无结果的年份分组会自动收起。
 - `/archive/` 与 `/essay/` 补充了更明确的页面描述，改善分享与搜索引擎识别。
 - `/bits/` 改为分页浏览；搜索支持高亮、命中片段、键盘操作，并可直接跳转到对应内容。
+- 文章详情路由从 `[...slug]` 收紧为 `[slug]`，消除与 `tag/` / `page/` 子路由的命名空间冲突；子目录文件路径会自动拍平为单段 slug，slug 正则与保留字规则改为共享模块统一维护。
 
 ### Fixed
 - 修复无 JavaScript 时 `/archive/` 标签入口不可用的问题。
